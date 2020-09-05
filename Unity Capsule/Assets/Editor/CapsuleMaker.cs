@@ -11,7 +11,7 @@ public class CapsuleMaker : EditorWindow
         Uniform = 2
     }
 
-    string folderPath = "Assets/";
+    string folderPath = "Assets/Meshes/";
     string meshName = "Capsule";
     bool createInstance = true;
     int longitudes = 32;
@@ -34,15 +34,18 @@ public class CapsuleMaker : EditorWindow
 
     void OnGUI ( )
     {
-        meshName = EditorGUILayout.TextField ("Name", meshName);
-        folderPath = EditorGUILayout.TextField ("Path", folderPath);
+        // General mesh input fields.
+        meshName = EditorGUILayout.DelayedTextField ("Name", meshName);
+        folderPath = EditorGUILayout.DelayedTextField ("Path", folderPath);
         createInstance = EditorGUILayout.ToggleLeft ("Instantiate", createInstance);
 
-        longitudes = Mathf.Max (3, EditorGUILayout.IntField ("Longitudes", longitudes));
-        latitudes = Mathf.Max (2, EditorGUILayout.IntField ("Latitudes", latitudes));
-        rings = Mathf.Max (0, EditorGUILayout.IntField ("Rings", rings));
-        depth = Mathf.Max (Mathf.Epsilon, EditorGUILayout.FloatField ("Depth", depth));
-        radius = Mathf.Max (Mathf.Epsilon, EditorGUILayout.FloatField ("Radius", radius));
+        // Capsule specific input fields.
+        longitudes = Mathf.Max (3, EditorGUILayout.DelayedIntField ("Longitudes", longitudes));
+        latitudes = Mathf.Max (2, EditorGUILayout.DelayedIntField ("Latitudes", latitudes));
+        latitudes = latitudes % 2 != 0 ? latitudes + 1 : latitudes;
+        rings = Mathf.Max (0, EditorGUILayout.DelayedIntField ("Rings", rings));
+        depth = Mathf.Max (Mathf.Epsilon, EditorGUILayout.DelayedFloatField ("Depth", depth));
+        radius = Mathf.Max (Mathf.Epsilon, EditorGUILayout.DelayedFloatField ("Radius", radius));
         profile = (UvProfile) EditorGUILayout.EnumPopup ("UV Profile", profile);
 
         if (GUILayout.Button ("Create"))
@@ -65,6 +68,10 @@ public class CapsuleMaker : EditorWindow
 
     Mesh CreateCapsuleNative ( )
     {
+        // TODO:: Mesh shade flat function?
+        // You'd have to visit each face and create a new uniform length....
+        // n = ( p1 - p0 ) x ( p2 - p0 )
+
         bool calcMiddle = rings > 0;
         int halfLats = latitudes / 2;
         int halfLatsn1 = halfLats - 1;
@@ -88,9 +95,6 @@ public class CapsuleMaker : EditorWindow
         Vector3[ ] vs = new Vector3[vertLen];
         Vector2[ ] vts = new Vector2[vertLen];
         Vector3[ ] vns = new Vector3[vertLen];
-
-        Vector2[ ] thetaCartesian = new Vector2[longitudes];
-        Vector2[ ] rhoThetaCartesian = new Vector2[longitudes];
 
         float toTheta = 2.0f * Mathf.PI / longitudes;
         float toPhi = Mathf.PI / latitudes;
@@ -118,11 +122,15 @@ public class CapsuleMaker : EditorWindow
         float vtAspectNorth = 1.0f - vtAspectRatio;
         float vtAspectSouth = vtAspectRatio;
 
+        Vector2[ ] thetaCartesian = new Vector2[longitudes];
+        Vector2[ ] rhoThetaCartesian = new Vector2[longitudes];
+        float[ ] sTextureCache = new float[lonsp1];
+
         // Polar vertices.
         for (int j = 0; j < longitudes; ++j)
         {
             float jf = j;
-            float sTexturePolar = 1.0f - (jf + 0.5f) * toTexHorizontal;
+            float sTexturePolar = 1.0f - ((jf + 0.5f) * toTexHorizontal);
             float theta = jf * toTheta;
 
             float cosTheta = Mathf.Cos (theta);
@@ -134,19 +142,16 @@ public class CapsuleMaker : EditorWindow
                 radius * sinTheta);
 
             // North coordinate.
-            int idx = j;
-            vs[idx] = new Vector3 (0.0f, summit, 0.0f);
-            vts[idx] = new Vector2 (sTexturePolar, 1.0f);
-            vns[idx] = new Vector3 (0.0f, 1.0f, 0f);
+            vs[j] = new Vector3 (0.0f, summit, 0.0f);
+            vts[j] = new Vector2 (sTexturePolar, 1.0f);
+            vns[j] = new Vector3 (0.0f, 1.0f, 0f);
 
             // South coordinates.
-            idx = vertOffsetSouthCap + j;
+            int idx = vertOffsetSouthCap + j;
             vs[idx] = new Vector3 (0.0f, -summit, 0.0f);
             vts[idx] = new Vector2 (sTexturePolar, 0.0f);
             vns[idx] = new Vector3 (0.0f, -1.0f, 0.0f);
         }
-
-        float[ ] sTextureCache = new float[lonsp1];
 
         // Equatorial vertices.
         for (int j = 0; j < lonsp1; ++j)
@@ -159,16 +164,16 @@ public class CapsuleMaker : EditorWindow
             Vector2 rtc = rhoThetaCartesian[jMod];
 
             // North equator.
-            int idx = vertOffsetNorthEquator + j;
-            vs[idx] = new Vector3 (rtc.x, halfDepth, -rtc.y);
-            vts[idx] = new Vector2 (sTexture, vtAspectNorth);
-            vns[idx] = new Vector3 (tc.x, 0.0f, -tc.y);
+            int idxn = vertOffsetNorthEquator + j;
+            vs[idxn] = new Vector3 (rtc.x, halfDepth, -rtc.y);
+            vts[idxn] = new Vector2 (sTexture, vtAspectNorth);
+            vns[idxn] = new Vector3 (tc.x, 0.0f, -tc.y);
 
             // South equator.
-            idx = vertOffsetSouthEquator + j;
-            vs[idx] = new Vector3 (rtc.x, -halfDepth, -rtc.y);
-            vts[idx] = new Vector2 (sTexture, vtAspectSouth);
-            vns[idx] = new Vector3 (tc.x, 0.0f, -tc.y);
+            int idxs = vertOffsetSouthEquator + j;
+            vs[idxs] = new Vector3 (rtc.x, -halfDepth, -rtc.y);
+            vts[idxs] = new Vector2 (sTexture, vtAspectSouth);
+            vns[idxs] = new Vector3 (tc.x, 0.0f, -tc.y);
         }
 
         // Hemisphere vertices.
@@ -206,36 +211,34 @@ public class CapsuleMaker : EditorWindow
 
             for (int j = 0; j < lonsp1; ++j)
             {
-                int jp1 = j + 1;
                 int jMod = j % longitudes;
 
                 float sTexture = sTextureCache[j];
                 Vector2 tc = thetaCartesian[jMod];
 
                 // North hemisphere.
-                int idx = vertCurrLatNorth + j;
-                vs[idx] = new Vector3 (
+                int idxn = vertCurrLatNorth + j;
+                vs[idxn] = new Vector3 (
                     rhoCosPhiNorth * tc.x,
                     zOffsetNorth, // 
                     -rhoCosPhiNorth * tc.y);
-                vts[idx] = new Vector2 (sTexture, tTexNorth);
-                vns[idx] = new Vector3 (
+                vts[idxn] = new Vector2 (sTexture, tTexNorth);
+                vns[idxn] = new Vector3 (
                     cosPhiNorth * tc.x, //
                     -sinPhiNorth, //
                     -cosPhiNorth * tc.y);
 
                 // South hemisphere.
-                idx = vertCurrLatSouth + j;
-                vs[idx] = new Vector3 (
+                int idxs = vertCurrLatSouth + j;
+                vs[idxs] = new Vector3 (
                     rhoCosPhiSouth * tc.x,
                     zOffsetSouth, //
                     -rhoCosPhiSouth * tc.y);
-                vts[idx] = new Vector2 (sTexture, tTexSouth);
-                vns[idx] = new Vector3 (
+                vts[idxs] = new Vector2 (sTexture, tTexSouth);
+                vns[idxs] = new Vector3 (
                     cosPhiSouth * tc.x, //
                     -sinPhiSouth, //
                     -cosPhiSouth * tc.y);
-
             }
         }
 
@@ -244,12 +247,14 @@ public class CapsuleMaker : EditorWindow
         {
             float toFac = 1.0f / ringsp1;
             int idxCylFlat = vertOffsetCylinder;
+
             for (int h = 1; h < ringsp1; ++h)
             {
                 float fac = h * toFac;
                 float cmplFac = 1.0f - fac;
                 float tTexture = cmplFac * vtAspectNorth + fac * vtAspectSouth;
-                float z = cmplFac * halfDepth - fac * halfDepth;
+                // float z = cmplFac * halfDepth - fac * halfDepth;
+                float z = halfDepth - depth * fac;
 
                 for (int j = 0; j < lonsp1; ++j)
                 {
@@ -307,31 +312,31 @@ public class CapsuleMaker : EditorWindow
 
             for (int j = 0; j < longitudes; ++j, k += 6, m += 6)
             {
-                int vn00 = vertCurrLatNorth + j;
-                int vn01 = vertNextLatNorth + j;
-                int vn11 = vertNextLatNorth + j + 1;
-                int vn10 = vertCurrLatNorth + j + 1;
+                int north00 = vertCurrLatNorth + j;
+                int north01 = vertNextLatNorth + j;
+                int north11 = vertNextLatNorth + j + 1;
+                int north10 = vertCurrLatNorth + j + 1;
 
-                tris[k] = vn00;
-                tris[k + 1] = vn11;
-                tris[k + 2] = vn10;
+                tris[k] = north00;
+                tris[k + 1] = north11;
+                tris[k + 2] = north10;
 
-                tris[k + 3] = vn00;
-                tris[k + 4] = vn01;
-                tris[k + 5] = vn11;
+                tris[k + 3] = north00;
+                tris[k + 4] = north01;
+                tris[k + 5] = north11;
 
-                int vs00 = vertCurrLatSouth + j;
-                int vs01 = vertNextLatSouth + j;
-                int vs11 = vertNextLatSouth + j + 1;
-                int vs10 = vertCurrLatSouth + j + 1;
+                int south00 = vertCurrLatSouth + j;
+                int south01 = vertNextLatSouth + j;
+                int south11 = vertNextLatSouth + j + 1;
+                int south10 = vertCurrLatSouth + j + 1;
 
-                tris[m] = vs00;
-                tris[m + 1] = vs11;
-                tris[m + 2] = vs10;
+                tris[m] = south00;
+                tris[m + 1] = south11;
+                tris[m + 2] = south10;
 
-                tris[m + 3] = vs00;
-                tris[m + 4] = vs01;
-                tris[m + 5] = vs11;
+                tris[m + 3] = south00;
+                tris[m + 4] = south01;
+                tris[m + 5] = south11;
             }
         }
 
@@ -344,18 +349,18 @@ public class CapsuleMaker : EditorWindow
 
             for (int j = 0; j < longitudes; ++j, k += 6)
             {
-                int v00 = vertCurrLat + j;
-                int v01 = vertNextLat + j;
-                int v11 = vertNextLat + j + 1;
-                int v10 = vertCurrLat + j + 1;
+                int cy00 = vertCurrLat + j;
+                int cy01 = vertNextLat + j;
+                int cy11 = vertNextLat + j + 1;
+                int cy10 = vertCurrLat + j + 1;
 
-                tris[k] = v00;
-                tris[k + 1] = v11;
-                tris[k + 2] = v10;
+                tris[k] = cy00;
+                tris[k + 1] = cy11;
+                tris[k + 2] = cy10;
 
-                tris[k + 3] = v00;
-                tris[k + 4] = v01;
-                tris[k + 5] = v11;
+                tris[k + 3] = cy00;
+                tris[k + 4] = cy01;
+                tris[k + 5] = cy11;
             }
         }
 
