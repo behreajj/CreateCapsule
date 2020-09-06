@@ -14,12 +14,42 @@ public class CapsuleMaker : EditorWindow
     string folderPath = "Assets/Meshes/";
     string meshName = "Capsule";
     bool createInstance = true;
+
     int longitudes = 32;
     int latitudes = 16;
     int rings = 0;
     float depth = 1.0f;
     float radius = 0.5f;
     UvProfile profile = UvProfile.Aspect;
+
+    GUIContent nameLabel = new GUIContent (
+        "Name",
+        "The name of the mesh asset.");
+    GUIContent pathLabel = new GUIContent (
+        "Path",
+        "The file path relative to the project folder.");
+    GUIContent instLabel = new GUIContent (
+        "Instantiate",
+        "Instantiate a game object upon creation.");
+
+    GUIContent lonsLabel = new GUIContent (
+        "Longitudes",
+        "Number of longitudes, or meridians, distributed by azimuth.");
+    GUIContent latsLabel = new GUIContent (
+        "Latitudes",
+        "Number of latitudes, distributed by inclination. Must be even.");
+    GUIContent ringsLabel = new GUIContent (
+        "Rings",
+        "Number of sections in cylinder between hemispheres.");
+    GUIContent depthLabel = new GUIContent (
+        "Depth",
+        "Height of the middle cylinder on the y axis, excluding the hemispheres.");
+    GUIContent radiusLabel = new GUIContent (
+        "Radius",
+        "Radius on the xz plane.");
+    GUIContent uvProfLabel = new GUIContent (
+        "UV Profile",
+        "Manner in which UV coordinates are distributed vertically.");
 
     [MenuItem ("Window/Capsule Maker")]
     static void Init ( )
@@ -35,22 +65,28 @@ public class CapsuleMaker : EditorWindow
     void OnGUI ( )
     {
         // General mesh input fields.
-        meshName = EditorGUILayout.DelayedTextField ("Name", meshName);
-        folderPath = EditorGUILayout.DelayedTextField ("Path", folderPath);
-        createInstance = EditorGUILayout.ToggleLeft ("Instantiate", createInstance);
+        meshName = EditorGUILayout.TextField (nameLabel, meshName);
+        folderPath = EditorGUILayout.TextField (pathLabel, folderPath);
+        createInstance = EditorGUILayout.ToggleLeft (instLabel, createInstance);
+        EditorGUILayout.Space ( );
 
         // Capsule specific input fields.
-        longitudes = Mathf.Max (3, EditorGUILayout.DelayedIntField ("Longitudes", longitudes));
-        latitudes = Mathf.Max (2, EditorGUILayout.DelayedIntField ("Latitudes", latitudes));
+        longitudes = Mathf.Max (3, EditorGUILayout.IntField (lonsLabel, longitudes));
+        latitudes = Mathf.Max (2, EditorGUILayout.IntField (latsLabel, latitudes));
         latitudes = latitudes % 2 != 0 ? latitudes + 1 : latitudes;
-        rings = Mathf.Max (0, EditorGUILayout.DelayedIntField ("Rings", rings));
-        depth = Mathf.Max (Mathf.Epsilon, EditorGUILayout.DelayedFloatField ("Depth", depth));
-        radius = Mathf.Max (Mathf.Epsilon, EditorGUILayout.DelayedFloatField ("Radius", radius));
-        profile = (UvProfile) EditorGUILayout.EnumPopup ("UV Profile", profile);
+        rings = Mathf.Max (0, EditorGUILayout.IntField (ringsLabel, rings));
+        EditorGUILayout.Space ( );
+
+        depth = Mathf.Max (Mathf.Epsilon, EditorGUILayout.FloatField (depthLabel, depth));
+        radius = Mathf.Max (Mathf.Epsilon, EditorGUILayout.FloatField (radiusLabel, radius));
+        EditorGUILayout.Space ( );
+
+        profile = (UvProfile) EditorGUILayout.EnumPopup (uvProfLabel, profile);
+        EditorGUILayout.Space ( );
 
         if (GUILayout.Button ("Create"))
         {
-            Mesh mesh = CreateCapsuleNative ( );
+            Mesh mesh = CapsuleData ( );
             string pth = new StringBuilder (96)
                 .Append (folderPath)
                 .Append (meshName)
@@ -61,17 +97,13 @@ public class CapsuleMaker : EditorWindow
 
             if (createInstance)
             {
-                GameObject go = InstantMesh (meshName, mesh);
+                GameObject go = InstantMesh (meshName, mesh, depth, radius);
             }
         }
     }
 
-    Mesh CreateCapsuleNative ( )
+    Mesh CapsuleData ( )
     {
-        // TODO:: Mesh shade flat function?
-        // You'd have to visit each face and create a new uniform length....
-        // n = ( p1 - p0 ) x ( p2 - p0 )
-
         bool calcMiddle = rings > 0;
         int halfLats = latitudes / 2;
         int halfLatsn1 = halfLats - 1;
@@ -85,7 +117,9 @@ public class CapsuleMaker : EditorWindow
         int vertOffsetNorthHemi = longitudes;
         int vertOffsetNorthEquator = vertOffsetNorthHemi + lonsp1 * halfLatsn1;
         int vertOffsetCylinder = vertOffsetNorthEquator + lonsp1;
-        int vertOffsetSouthEquator = calcMiddle ? vertOffsetCylinder + lonsp1 * rings : vertOffsetCylinder;
+        int vertOffsetSouthEquator = calcMiddle ?
+            vertOffsetCylinder + lonsp1 * rings :
+            vertOffsetCylinder;
         int vertOffsetSouthHemi = vertOffsetSouthEquator + lonsp1;
         int vertOffsetSouthPolar = vertOffsetSouthHemi + lonsp1 * halfLatsn2;
         int vertOffsetSouthCap = vertOffsetSouthPolar + lonsp1;
@@ -141,12 +175,12 @@ public class CapsuleMaker : EditorWindow
                 radius * cosTheta,
                 radius * sinTheta);
 
-            // North coordinate.
+            // North.
             vs[j] = new Vector3 (0.0f, summit, 0.0f);
             vts[j] = new Vector2 (sTexturePolar, 1.0f);
             vns[j] = new Vector3 (0.0f, 1.0f, 0f);
 
-            // South coordinates.
+            // South.
             int idx = vertOffsetSouthCap + j;
             vs[idx] = new Vector3 (0.0f, -summit, 0.0f);
             vts[idx] = new Vector2 (sTexturePolar, 0.0f);
@@ -159,6 +193,7 @@ public class CapsuleMaker : EditorWindow
             float sTexture = 1.0f - j * toTexHorizontal;
             sTextureCache[j] = sTexture;
 
+            // Wrap to first element upon reaching last.
             int jMod = j % longitudes;
             Vector2 tc = thetaCartesian[jMod];
             Vector2 rtc = rhoThetaCartesian[jMod];
@@ -245,6 +280,8 @@ public class CapsuleMaker : EditorWindow
         // Cylinder vertices.
         if (calcMiddle)
         {
+            // Exclude both origin and destination edges
+            // (North and South equators) from the interpolation.
             float toFac = 1.0f / ringsp1;
             int idxCylFlat = vertOffsetCylinder;
 
@@ -253,7 +290,6 @@ public class CapsuleMaker : EditorWindow
                 float fac = h * toFac;
                 float cmplFac = 1.0f - fac;
                 float tTexture = cmplFac * vtAspectNorth + fac * vtAspectSouth;
-                // float z = cmplFac * halfDepth - fac * halfDepth;
                 float z = halfDepth - depth * fac;
 
                 for (int j = 0; j < lonsp1; ++j)
@@ -290,10 +326,12 @@ public class CapsuleMaker : EditorWindow
         // Polar caps.
         for (int i = 0, k = 0, m = triOffsetSouthCap; i < longitudes; ++i, k += 3, m += 3)
         {
+            // North.
             tris[k] = i;
             tris[k + 1] = vertOffsetNorthHemi + i;
             tris[k + 2] = vertOffsetNorthHemi + i + 1;
 
+            // South.
             tris[m] = vertOffsetSouthCap + i;
             tris[m + 1] = vertOffsetSouthPolar + i + 1;
             tris[m + 2] = vertOffsetSouthPolar + i;
@@ -312,6 +350,7 @@ public class CapsuleMaker : EditorWindow
 
             for (int j = 0; j < longitudes; ++j, k += 6, m += 6)
             {
+                // North.
                 int north00 = vertCurrLatNorth + j;
                 int north01 = vertNextLatNorth + j;
                 int north11 = vertNextLatNorth + j + 1;
@@ -325,6 +364,7 @@ public class CapsuleMaker : EditorWindow
                 tris[k + 4] = north01;
                 tris[k + 5] = north11;
 
+                // South.
                 int south00 = vertCurrLatSouth + j;
                 int south01 = vertNextLatSouth + j;
                 int south11 = vertNextLatSouth + j + 1;
@@ -368,30 +408,29 @@ public class CapsuleMaker : EditorWindow
         mesh.vertices = vs;
         mesh.uv = vts;
         mesh.normals = vns;
+
+        // Triangles must be assigned last.
         mesh.triangles = tris;
         mesh.RecalculateTangents ( );
         mesh.Optimize ( );
-
         return mesh;
     }
 
-    static GameObject InstantMesh (in string name, in Mesh mesh)
+    static GameObject InstantMesh (in string name, in Mesh mesh, in float capsuleDepth = 1.0f, in float capsuleRadius = 0.5f)
     {
         GameObject go = new GameObject (name);
 
         MeshFilter mf = go.AddComponent<MeshFilter> ( );
         MeshRenderer mr = go.AddComponent<MeshRenderer> ( );
+        CapsuleCollider cc = go.AddComponent<CapsuleCollider> ( );
 
         mf.sharedMesh = mesh;
-        mr.sharedMaterial = AssetDatabase.GetBuiltinExtraResource<Material> ("Default-Diffuse.mat");
+        mr.sharedMaterial = AssetDatabase.GetBuiltinExtraResource<Material> (
+            "Default-Diffuse.mat");
+        cc.height = capsuleDepth + capsuleRadius * 2.0f;
+        cc.radius = capsuleRadius;
 
-        if (mesh.triangles.Length < 768)
-        {
-            MeshCollider mc = go.AddComponent<MeshCollider> ( );
-            mc.sharedMesh = mesh;
-            mc.convex = true;
-        }
-
+        Selection.activeObject = go;
         return go;
     }
 }

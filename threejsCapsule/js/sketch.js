@@ -1,9 +1,10 @@
 'use strict';
 
+const txtrpath = "assets/diagnostic.png";
+
 let rndr;
 const renderProps = {
-    antialias: true,
-    clearColor: 0xff202020
+    antialias: true
 };
 let scene;
 let cam;
@@ -20,6 +21,10 @@ let standard;
 // Mesh = Geometry + Material
 let mesh;
 
+// To animate the mesh rotation.
+let transform;
+let axis;
+
 // Wait until the browser has loaded the HTML document, then perform this
 // function on completion of load.
 window.onload = setup;
@@ -35,6 +40,9 @@ function setup () {
     // Set to the size of the browser window.
     rndr.setSize(window.innerWidth, window.innerHeight);
 
+    // Set background color.
+    rndr.setClearColor(new THREE.Color(1.0, 1.0, 1.0), 1.0);
+
     // Create a scene.
     scene = new THREE.Scene();
 
@@ -46,21 +54,38 @@ function setup () {
         1000); /* Far Plane */
     cam.position.z = window.innerHeight * 0.86602;
 
+    // Depending on what kind of camera is in use, add
+    // the appropriate adjustment function when the
+    // browser is resized.
+    window.onresize = adjustPerspective;
+
     // Lights.
     directional = new THREE.DirectionalLight(0xfff5cd, 0.75);
     directional.position.set(0.5, 0.75, 0.75);
 
     // Geometry.
-    geom = createCapsule(32, 16, 0, 200.0, 100.0);
+    const r = 0.2 * Math.min(
+        window.innerWidth,
+        window.innerHeight);
+    geom = createCapsule(32, 16, 0, r * 2, r, "ASPECT");
+
+    const texture = new THREE.TextureLoader().load(
+        txtrpath);
 
     // Materials.
     standard = new THREE.MeshStandardMaterial({
-        color: 0xfff7d5
+        color: 0xffffff,
+        map: texture,
+        flatShading: false
     });
 
     // Mesh = Geometry + Material.
     mesh = new THREE.Mesh(geom, standard);
     mesh.position.set(0, 0, 0);
+
+    // Assign animation variables.
+    transform = new THREE.Matrix4();
+    axis = new THREE.Vector3(0.0, 0.6, 0.8);
 
     // Add items to the scene.
     scene.add(directional);
@@ -75,13 +100,11 @@ function setup () {
 
 function draw () {
 
-    //TODO: Look up how to create a texture procedurally to avoid loading asset
-    // & setting up a local host, etc.
     requestAnimationFrame(draw);
     rndr.render(scene, cam);
 
-    geom.rotateX(0.01);
-    geom.rotateZ(0.01);
+    transform.makeRotationAxis(axis, 0.01);
+    geom.applyMatrix4(transform);
 }
 
 function updateFace (
@@ -124,10 +147,10 @@ function updateFace (
     vnFace.y *= invVnMag;
     vnFace.z *= invVnMag;
 
-    // TODO: Test UVs layer to see if these need to be copied.
-    vtLayer[0] = vts[avt];
-    vtLayer[1] = vts[bvt];
-    vtLayer[2] = vts[cvt];
+    // By reference or by value?
+    vtLayer[0].copy(vts[avt]);
+    vtLayer[1].copy(vts[bvt]);
+    vtLayer[2].copy(vts[cvt]);
 }
 
 function createCapsule (
@@ -263,7 +286,7 @@ function createCapsule (
     if (profile === "ASPECT") {
         vtAspectRatio = verifRad / (verifDepth + verifRad + verifRad);
     } else if (profile === "UNIFORM") {
-        vtAspectRatio = halfLats / (ringsp1 + verifLats);
+        vtAspectRatio = halfLats / (verifRingsP1 + verifLats);
     }
     const vtAspectNorth = 1.0 - vtAspectRatio;
     const vtAspectSouth = vtAspectRatio;
@@ -397,12 +420,22 @@ function createCapsule (
 
     for (let i = 0; i < lenIndices; ++i) {
         const faceColor = new THREE.Color(1.0, 1.0, 1.0);
+        const faceNormal = new THREE.Vector3(0.0, 1.0, 0.0);
+        const materialIndex = 0;
+
+        // Each face needs to have its own copy of vertex normals; otherwise the
+        // normals go wonky when the geometry is transformed.
         const vertNormals = [
             new THREE.Vector3(0.0, 1.0, 0.0),
             new THREE.Vector3(0.0, 1.0, 0.0),
             new THREE.Vector3(0.0, 1.0, 0.0)];
-        const vtArr = [null, null, null];
-        const materialIndex = 0;
+
+        // By reference or by value?
+        // const vtArr = [null, null, null];
+        const vtArr = [
+            new THREE.Vector2(0.5, 0.5),
+            new THREE.Vector2(0.5, 0.5),
+            new THREE.Vector2(0.5, 0.5)];
 
         // The first three parameters are the coordinate indices. The next
         // parameter either accepts one normal for flat, per-face shading, or an
@@ -415,7 +448,7 @@ function createCapsule (
 
         // Since an array of vertex normals was supplied to the constructor, the
         // per face normal needs to be created.
-        tri.normal = new THREE.Vector3(0.0, 1.0, 0.0);
+        tri.normal = faceNormal;
 
         tris.push(tri);
         vtLayer.push(vtArr);
@@ -614,4 +647,10 @@ function createCapsule (
     geom.faces = tris;
     geom.faceVertexUvs[0] = vtLayer;
     return geom;
+}
+
+function adjustPerspective () {
+    cam.aspect = window.innerWidth / window.innerHeight;
+    cam.updateProjectionMatrix();
+    rndr.setSize(window.innerWidth, window.innerHeight);
 }
