@@ -1,6 +1,6 @@
 'use strict';
 
-const txtrpath = "assets/diagnostic.png";
+const txtrpath = "../assets/diagnostic.png";
 
 let rndr;
 const renderProps = {

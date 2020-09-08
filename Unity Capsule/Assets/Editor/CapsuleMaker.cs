@@ -113,7 +113,7 @@ public class CapsuleMaker : EditorWindow
         float halfDepth = depth * 0.5f;
         float summit = halfDepth + radius;
 
-        // Vertex Index offsets.
+        // Vertex index offsets.
         int vertOffsetNorthHemi = longitudes;
         int vertOffsetNorthEquator = vertOffsetNorthHemi + lonsp1 * halfLatsn1;
         int vertOffsetCylinder = vertOffsetNorthEquator + lonsp1;
@@ -283,7 +283,7 @@ public class CapsuleMaker : EditorWindow
             // Exclude both origin and destination edges
             // (North and South equators) from the interpolation.
             float toFac = 1.0f / ringsp1;
-            int idxCylFlat = vertOffsetCylinder;
+            int idxCylLat = vertOffsetCylinder;
 
             for (int h = 1; h < ringsp1; ++h)
             {
@@ -299,11 +299,11 @@ public class CapsuleMaker : EditorWindow
                     Vector2 rtc = rhoThetaCartesian[jMod];
                     float sTexture = sTextureCache[j];
 
-                    vs[idxCylFlat] = new Vector3 (rtc.x, z, -rtc.y);
-                    vts[idxCylFlat] = new Vector2 (sTexture, tTexture);
-                    vns[idxCylFlat] = new Vector3 (tc.x, 0.0f, -tc.y);
+                    vs[idxCylLat] = new Vector3 (rtc.x, z, -rtc.y);
+                    vts[idxCylLat] = new Vector2 (sTexture, tTexture);
+                    vns[idxCylLat] = new Vector3 (tc.x, 0.0f, -tc.y);
 
-                    ++idxCylFlat;
+                    ++idxCylLat;
                 }
             }
         }

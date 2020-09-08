@@ -1,8 +1,7 @@
 import processing.opengl.PShapeOpenGL;
 
-PShape pshp;
+PShape composite;
 PShape tessellated;
-PShape control;
 
 int longitudes = 32;
 int latitudes = 16;
@@ -12,53 +11,48 @@ float radius = 75.0;
 CapsuleUvProfile profile = CapsuleUvProfile.ASPECT;
 
 void settings() {
-  size(768, 512, P3D);
+  size(720, 405, P3D);
 }
 
 void setup() {
   textureWrap(REPEAT);
 
   Mesh3 mesh = Mesh3.capsule(
-    longitudes,
-    latitudes,
-    rings,
-    depth,
-    radius,
-    profile);
+    longitudes, latitudes, rings,
+    depth, radius, profile);
+  // mesh.shadeFlat();
 
-  pshp = toPShape((PGraphics3D)getGraphics(), mesh);
-  pshp.disableStyle();
+  composite = toPShape((PGraphics3D)getGraphics(), mesh);
+  composite.disableStyle();
 
   PImage texture = loadImage("diagnostic.png");
-  tessellated = pshp.getTessellation();
+  tessellated = composite.getTessellation();
   tessellated.setTextureMode(NORMAL);
   tessellated.setTexture(texture);
-
-  control = createShape(SPHERE, radius);
-  control.setTexture(texture);
-  control.setStroke(false);
 }
 
 void draw() {
   surface.setTitle(nfs(frameRate, 0, 1));
   background(#ffffff);
-  directionalLight(255, 245, 215, 0.0, 0.6, -0.8);
+  directionalLight(
+    255.0, 245.0, 215.0,
+    0.0, 0.6, -0.8);
   camera(
     0.0, 0.0, height * 0.86602,
     0.0, 0.0, 0.0,
     0.0, 1.0, 0.0);
 
-  push();
+  pushMatrix();
   rotate(frameCount * 0.01, 0.8, 0.6, 0.0);
   if (mousePressed) {
     strokeWeight(1.0);
     stroke(#fff7d5);
     fill(#202020);
-    shape(pshp);
+    shape(composite);
   } else {
     shape(tessellated);
   }
-  pop();
+  popMatrix();
 }
 
 PShapeOpenGL toPShape(

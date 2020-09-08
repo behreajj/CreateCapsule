@@ -1,9 +1,14 @@
-public static class Index3 {
+static class Index3 {
+  // Coordinate index.
   int v;
+  
+  // Texture coordinate index.
   int vt;
+  
+  // Normal index.
   int vn;
 
-  public Index3(
+  Index3(
     int v,
     int vt,
     int vn) {
