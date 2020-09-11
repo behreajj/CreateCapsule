@@ -21,9 +21,7 @@ bl_info = {
 
 
 class CapsuleMaker(bpy.types.Operator):
-    """
-    Creates a UV capsule.
-    """
+    """Creates a UV capsule"""
 
     bl_idname = "mesh.primitive_capsule_add"
     bl_label = "Capsule"
@@ -568,6 +566,7 @@ class CapsuleMaker(bpy.types.Operator):
 
                 f_cyl_offset += 1
 
+        # Return a dictionary containing data.
         return {"vs": vs,
                 "vts": vts,
                 "vns": vns,
