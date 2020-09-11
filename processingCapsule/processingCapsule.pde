@@ -5,7 +5,7 @@ PShape tessellated;
 
 int longitudes = 32;
 int latitudes = 16;
-int rings = 1;
+int rings = 0;
 float depth = 175.0;
 float radius = 75.0;
 CapsuleUvProfile profile = CapsuleUvProfile.ASPECT;
@@ -15,6 +15,7 @@ void settings() {
 }
 
 void setup() {
+  textureMode(NORMAL);
   textureWrap(REPEAT);
 
   Mesh3 mesh = Mesh3.capsule(
@@ -43,15 +44,18 @@ void draw() {
     0.0, 1.0, 0.0);
 
   pushMatrix();
+  translate(-150.0, 0.0, 0.0);
   rotate(frameCount * 0.01, 0.8, 0.6, 0.0);
-  if (mousePressed) {
-    strokeWeight(1.0);
-    stroke(#fff7d5);
-    fill(#202020);
-    shape(composite);
-  } else {
-    shape(tessellated);
-  }
+  strokeWeight(1.0);
+  stroke(#fff7d5);
+  fill(#202020);
+  shape(composite);
+  popMatrix();
+
+  pushMatrix();
+  translate(150.0, 0.0, 0.0);
+  rotate(frameCount * 0.01, 0.8, 0.6, 0.0);
+  shape(tessellated);
   popMatrix();
 }
 

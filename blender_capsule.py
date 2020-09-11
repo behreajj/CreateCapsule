@@ -1,7 +1,6 @@
 import bpy
 import math
 import bmesh
-import time
 from bpy.props import (
     BoolProperty,
     IntProperty,
@@ -22,11 +21,13 @@ bl_info = {
 
 
 class CapsuleMaker(bpy.types.Operator):
+    """
+    Creates a UV capsule.
+    """
+
     bl_idname = "mesh.primitive_capsule_add"
     bl_label = "Capsule"
-
-    # Needed for Redo menu to appear.
-    bl_options = {'REGISTER', 'UNDO'}
+    bl_options = {"REGISTER", "UNDO"}
 
     longitudes: IntProperty(
         name="Longitudes",
@@ -72,6 +73,7 @@ class CapsuleMaker(bpy.types.Operator):
             ("FIXED", "Fixed", "Uses a fixed ratio.", 2),
             ("UNIFORM", "Uniform", "UV cells are uniform size.", 3)],
         name="UV Profile",
+        default="ASPECT",
         description="How to distribute texture coordinates vertically.")
 
     shading: EnumProperty(
@@ -79,6 +81,7 @@ class CapsuleMaker(bpy.types.Operator):
             ("SMOOTH", "Smooth", "Smooth shading.", 1),
             ("FLAT", "Flat", "Flat shading.", 2)],
         name="Shading",
+        default="SMOOTH",
         description="Whether to use smooth or flat shading.")
 
     def execute(self, context):
@@ -99,23 +102,25 @@ class CapsuleMaker(bpy.types.Operator):
             vn_indices=data["vn_indices"],
             use_smooth_shading=self.shading == "SMOOTH")
 
-        context_mode = context.mode
-        if context_mode == "OBJECT":
-            mesh_data = bpy.data.meshes.new("Capsule")
-            bm.to_mesh(mesh_data)
-            bm.free()
-            mesh_obj = bpy.data.objects.new(mesh_data.name, mesh_data)
-            mesh_obj.rotation_mode = "QUATERNION"
-            context.scene.collection.objects.link(mesh_obj)
+        mesh_data = bpy.data.meshes.new("Capsule")
+        bm.to_mesh(mesh_data)
+        bm.free()
+        mesh_obj = bpy.data.objects.new(mesh_data.name, mesh_data)
+        mesh_obj.rotation_mode = "QUATERNION"
+        context.scene.collection.objects.link(mesh_obj)
 
-        return {'FINISHED'}
+        return {"FINISHED"}
 
     @classmethod
     def poll(cls, context):
         return context.area.type == "VIEW_3D"
 
     @staticmethod
-    def mesh_data_to_bmesh(vs, vts, vns, v_indices, vt_indices, vn_indices, use_smooth_shading=True):
+    def mesh_data_to_bmesh(
+            vs, vts, vns,
+            v_indices, vt_indices, vn_indices,
+            use_smooth_shading=True):
+        
         bm = bmesh.new()
 
         # Create BM vertices.
@@ -125,6 +130,7 @@ class CapsuleMaker(bpy.types.Operator):
             v = vs[i]
             bm_verts[i] = bm.verts.new(v)
 
+        # Create BM faces.
         len_v_indices = len(v_indices)
         bm_faces = [None] * len_v_indices
         uv_layer = bm.loops.layers.uv.verify()
@@ -195,7 +201,7 @@ class CapsuleMaker(bpy.types.Operator):
         idx_v_south_cap = idx_v_south + verif_lons * half_lats_n2
         idx_v_south_pole = idx_v_south_cap + verif_lons
 
-        # Texture coordinate indices.
+        # Texture coordinate index offsets.
         idx_vt_n_equator = verif_lons + verif_lons_p1 * half_lats_n1
         idx_vt_cyl = idx_vt_n_equator + verif_lons_p1
         idx_vt_s_equator = (idx_vt_cyl + verif_lons_p1 * verif_rings) \
@@ -204,7 +210,7 @@ class CapsuleMaker(bpy.types.Operator):
         idx_vt_s_polar = idx_vt_s_hemi + verif_lons_p1 * half_lats_n2
         idx_vt_s_cap = idx_vt_s_polar + verif_lons_p1
 
-        # Normal indices
+        # Normal index offsets.
         idx_vn_south = idx_v_n_equator + verif_lons
         idx_vn_south_cap = idx_vn_south + verif_lons * half_lats_n2
         idx_vn_south_pole = idx_vn_south_cap + verif_lons
@@ -227,9 +233,9 @@ class CapsuleMaker(bpy.types.Operator):
         vns[idx_vn_south_pole] = (0.0, 0.0, -1.0)
 
         # Calculate polar texture coordinates. UVs form a triangle at the poles,
-        # where the polar vertex is centered between the other two vertices. That is
-        # why j is offset by 0.5 . There is one fewer column of UVs at the poles, so
-        # the for loop uses the coordinate longitude range.
+        # where the polar vertex is centered between the other two vertices.
+        # That is why j is offset by 0.5 . There is one fewer column of UVs at
+        # the poles, so the for loop uses the coordinate longitude range.
         to_theta = math.tau / verif_lons
         to_phi = math.pi / verif_lats
         to_tex_horizontal = 1.0 / verif_lons
@@ -291,7 +297,7 @@ class CapsuleMaker(bpy.types.Operator):
 
             phi = i * to_phi
 
-            # Trigonometric symmetries mean cos and sin only need to be called once.
+            # Symmetries mean cos and sin only need to be called once.
             sin_phi_south = math.sin(phi)
             cos_phi_south = math.cos(phi)
             sin_phi_north = -cos_phi_south
@@ -307,7 +313,7 @@ class CapsuleMaker(bpy.types.Operator):
             rho_sin_phi_south = verif_rad * sin_phi_south
             offset_z_south = -half_depth - rho_sin_phi_south
 
-            # Coordinates
+            # Coordinates & normals.
             for j in range(0, verif_lons):
 
                 sin_theta, cos_theta = sin_cos_theta_cache[j]
@@ -342,7 +348,6 @@ class CapsuleMaker(bpy.types.Operator):
 
             # Find vertical component of texture.
             t_tex_fac = i * to_tex_vertical
-
             t_tex_north = 1.0 * (1.0 - t_tex_fac) + t_tex_fac * vt_aspect_north
             t_tex_south = vt_aspect_south * (1.0 - t_tex_fac) + t_tex_fac * 0.0
 
@@ -360,8 +365,8 @@ class CapsuleMaker(bpy.types.Operator):
         # Calculate rings of cylinder in middle.
         if calc_mid:
 
-            # Linear interpolation must exclude the origin (North equator) and the
-            # destination (South equator), so step must never equal 0.0 or 1.0 .
+            # Linear interpolation must exclude the origin (North equator) and
+            # destination (South equator), so step must not equal 0.0 or 1.0.
             to_fac = 1.0 / verif_rings_p1
             v_cyl_offset = idx_v_cyl
             vt_cyl_offset = idx_vt_cyl
@@ -375,8 +380,8 @@ class CapsuleMaker(bpy.types.Operator):
                 # Coordinates.
                 for j in range(0, verif_lons):
 
-                    # The x and y coordinates should be the same. North z should be
-                    # half_depth while South z should be -half_depth. So lerp
+                    # The x and y coordinates should be the same. North z should
+                    # be half_depth while South z should be -half_depth. So lerp
                     # between these is not strictly necessary.
                     v_equator_north = vs[idx_v_n_equator + j]
                     v_equator_south = vs[idx_v_s_equator + j]
@@ -385,7 +390,8 @@ class CapsuleMaker(bpy.types.Operator):
                         fac * v_equator_south[0],
                         cmpl_fac * v_equator_north[1] +
                         fac * v_equator_south[1],
-                        cmpl_fac * v_equator_north[2] + fac * v_equator_south[2])
+                        cmpl_fac * v_equator_north[2] +
+                        fac * v_equator_south[2])
                     v_cyl_offset += 1
 
                 # Texture coordinates.
@@ -399,7 +405,8 @@ class CapsuleMaker(bpy.types.Operator):
         idx_fs_south_equat = idx_fs_cyl + v_lons_v_sections_p1
         idx_fs_south_hemi = idx_fs_south_equat + v_lons_half_lat_n1
 
-        # Allocate indices arrays. (When properly filled, index tuples at the poles will be of length 3, else of length 4.)
+        # Allocate indices arrays. (When properly filled, index tuples at the
+        # poles will be of length 3, else of length 4.)
         len_indices = idx_fs_south_hemi + verif_lons
         v_indices = [(0, 0, 0)] * len_indices
         vt_indices = [(0, 0, 0)] * len_indices
@@ -570,7 +577,7 @@ class CapsuleMaker(bpy.types.Operator):
 
 
 def menu_func(self, context):
-    self.layout.operator(CapsuleMaker.bl_idname, icon='MESH_CAPSULE')
+    self.layout.operator(CapsuleMaker.bl_idname, icon="MESH_CAPSULE")
 
 
 def register():

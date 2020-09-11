@@ -34,7 +34,13 @@ public class ShadeFlat
             Vector3 b = vsSrc[bIdx];
             Vector3 c = vsSrc[cIdx];
 
-            Vector3 vn = Vector3.Normalize (Vector3.Cross (b - a, c - a));
+            // Vertex normals.
+            Vector3 vna = Vector3.Cross (b - a, c - a);
+            Vector3 vnb = Vector3.Cross (c - b, a - b);
+            Vector3 vnc = Vector3.Cross (a - c, b - c);
+
+            // Sum and normalize three normals.
+            Vector3 vn = Vector3.Normalize (vna + vnb + vnc);
 
             vnsTrg[i] = vn;
             vnsTrg[j] = vn;
