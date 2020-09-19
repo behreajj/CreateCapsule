@@ -54,14 +54,14 @@ class CapsuleMaker(bpy.types.Operator):
     depth: FloatProperty(
         name="Depth",
         description="Cylinder height",
-        min=0.000001,
+        min=0.0002,
         soft_max=100.0,
         default=1.0)
 
     radius: FloatProperty(
         name="Radius",
         description="Cylinder radius",
-        min=0.000001,
+        min=0.0001,
         soft_max=100.0,
         default=0.5)
 
@@ -118,7 +118,7 @@ class CapsuleMaker(bpy.types.Operator):
             vs, vts, vns,
             v_indices, vt_indices, vn_indices,
             use_smooth_shading=True):
-        
+
         bm = bmesh.new()
 
         # Create BM vertices.
@@ -168,8 +168,8 @@ class CapsuleMaker(bpy.types.Operator):
             uv_profile="FIXED"):
 
         # Validate arguments.
-        verif_rad = max(0.000001, radius)
-        verif_depth = max(0.00001, depth)
+        verif_rad = max(0.0001, radius)
+        verif_depth = max(0.0002, depth)
         verif_rings = max(0, rings)
         verif_lons = max(3, longitudes)
 
@@ -213,15 +213,32 @@ class CapsuleMaker(bpy.types.Operator):
         idx_vn_south_cap = idx_vn_south + verif_lons * half_lats_n2
         idx_vn_south_pole = idx_vn_south_cap + verif_lons
 
+        # Find index offsets for face indices.
+        idx_fs_cyl = verif_lons + v_lons_half_lat_n1
+        idx_fs_south_equat = idx_fs_cyl + v_lons_v_sections_p1
+        idx_fs_south_hemi = idx_fs_south_equat + v_lons_half_lat_n1
+
         # List lengths.
         len_vs = idx_v_south_pole + 1
         len_vts = idx_vt_s_cap + verif_lons
         len_vns = idx_vn_south_pole + verif_lons
+        len_indices = idx_fs_south_hemi + verif_lons
 
         # Allocate mesh data.
         vs = [(0.0, 0.0, 0.0)] * len_vs
         vts = [(0.5, 0.5)] * len_vts
         vns = [(0.0, 0.0, 1.0)] * len_vns
+
+        # Allocate indices arrays. (When properly filled, index tuples at the
+        # poles will be of length 3, else of length 4.)
+        v_indices = [(0, 0, 0)] * len_indices
+        vt_indices = [(0, 0, 0)] * len_indices
+        vn_indices = [(0, 0, 0)] * len_indices
+
+        # Ranges for loops.
+        lons_range = range(0, verif_lons)
+        lons_p1_range = range(0, verif_lons_p1)
+        hemi_range = range(0, half_lats_n1)
 
         # Set poles.
         vs[0] = (0.0, 0.0, summit)
@@ -240,7 +257,9 @@ class CapsuleMaker(bpy.types.Operator):
         to_tex_vertical = 1.0 / half_lats
         sin_cos_theta_cache = [(0.0, 1.0)] * verif_lons
 
-        for j in range(0, verif_lons):
+        for j in lons_range:
+            j_next_vt = j + 1
+            j_next_v = j_next_vt % verif_lons
 
             # Polar to Cartesian coordinates.
             theta = j * to_theta
@@ -264,19 +283,39 @@ class CapsuleMaker(bpy.types.Operator):
             # Equatorial normals.
             vns[idx_v_n_equator + j] = (cos_theta, sin_theta, 0.0)
 
+            # North triangle fan.
+            v_indices[j] = (0, j_next_vt, 1 + j_next_v)
+            vt_indices[j] = (j, verif_lons + j, verif_lons + j_next_vt)
+            vn_indices[j] = (0, j_next_vt, 1 + j_next_v)
+
+            # South triangle fan.
+            v_indices[idx_fs_south_hemi + j] = (
+                idx_v_south_pole,
+                idx_v_south_cap + j_next_v,
+                idx_v_south_cap + j)
+
+            vt_indices[idx_fs_south_hemi + j] = (
+                idx_vt_s_cap + j,
+                idx_vt_s_polar + j_next_vt,
+                idx_vt_s_polar + j)
+
+            vn_indices[idx_fs_south_hemi + j] = (
+                idx_vn_south_pole,
+                idx_vn_south_cap + j_next_v,
+                idx_vn_south_cap + j)
+
         # Calculate equatorial texture coordinates. Cache horizontal measure.
         s_tex_cache = [0.5] * verif_lons_p1
 
+        # Aspect ratio.
         vt_aspect_south = 1.0 / 3.0
         if uv_profile == "ASPECT":
             vt_aspect_south = (verif_rad / (verif_depth + 2.0 * verif_rad))
         elif uv_profile == "UNIFORM":
             vt_aspect_south = half_lats / (verif_rings_p1 + verif_lats)
-
         vt_aspect_north = 1.0 - vt_aspect_south
 
-        for j in range(0, verif_lons_p1):
-
+        for j in lons_p1_range:
             s_tex = j * to_tex_horizontal
             s_tex_cache[j] = s_tex
             vts[idx_vt_n_equator + j] = (s_tex, vt_aspect_north)
@@ -291,9 +330,13 @@ class CapsuleMaker(bpy.types.Operator):
 
         vn_hemi_offset_south = idx_vn_south
 
-        for i in range(1, half_lats):
+        f_hemi_offset_north = verif_lons
+        f_hemi_offset_south = idx_fs_south_equat
 
-            phi = i * to_phi
+        for i in hemi_range:
+            ip1 = i + 1.0
+            phi = ip1 * to_phi
+            i_v_lons = i * verif_lons
 
             # Symmetries mean cos and sin only need to be called once.
             sin_phi_south = math.sin(phi)
@@ -311,9 +354,34 @@ class CapsuleMaker(bpy.types.Operator):
             rho_sin_phi_south = verif_rad * sin_phi_south
             offset_z_south = -half_depth - rho_sin_phi_south
 
-            # Coordinates & normals.
-            for j in range(0, verif_lons):
+            # North coordinate index offset.
+            v_curr_lat_n = 1 + i_v_lons
+            v_next_lat_n = v_curr_lat_n + verif_lons
 
+            # North texture coordinate index offset.
+            vt_curr_lat_n = verif_lons + i * verif_lons_p1
+            vt_next_lat_n = vt_curr_lat_n + verif_lons_p1
+
+            # North normal index offset.
+            vn_curr_lat_n = 1 + i_v_lons
+            vn_next_lat_n = vn_curr_lat_n + verif_lons
+
+            # South coordinate index offset.
+            v_curr_lat_s = idx_v_s_equator + i_v_lons
+            v_next_lat_s = v_curr_lat_s + verif_lons
+
+            # South texture coordinate index offset.
+            vt_curr_lat_s = idx_vt_s_equator + i * verif_lons_p1
+            vt_next_lat_s = vt_curr_lat_s + verif_lons_p1
+
+            # South normal index offset.
+            vn_curr_lat_s = idx_v_n_equator + i_v_lons
+            vn_next_lat_s = vn_curr_lat_s + verif_lons
+
+            # Coordinates & normals.
+            for j in lons_range:
+                j_next_vt = j + 1
+                j_next_v = j_next_vt % verif_lons
                 sin_theta, cos_theta = sin_cos_theta_cache[j]
 
                 # North coordinate.
@@ -340,149 +408,10 @@ class CapsuleMaker(bpy.types.Operator):
                     cos_phi_south * sin_theta,
                     -sin_phi_south)
 
+                # Update vertex offsets.
                 v_hemi_offset_north += 1
                 v_hemi_offset_south += 1
                 vn_hemi_offset_south += 1
-
-            # Find vertical component of texture.
-            t_tex_fac = i * to_tex_vertical
-            t_tex_north = 1.0 * (1.0 - t_tex_fac) + t_tex_fac * vt_aspect_north
-            t_tex_south = vt_aspect_south * (1.0 - t_tex_fac) + t_tex_fac * 0.0
-
-            # Texture coordinates.
-            for j in range(0, verif_lons_p1):
-
-                s_tex = s_tex_cache[j]
-
-                vts[vt_hemi_offset_north] = (s_tex, t_tex_north)
-                vts[vt_hemi_offset_south] = (s_tex, t_tex_south)
-
-                vt_hemi_offset_north += 1
-                vt_hemi_offset_south += 1
-
-        # Calculate rings of cylinder in middle.
-        if calc_mid:
-
-            # Linear interpolation must exclude the origin (North equator) and
-            # destination (South equator), so step must not equal 0.0 or 1.0.
-            to_fac = 1.0 / verif_rings_p1
-            v_cyl_offset = idx_v_cyl
-            vt_cyl_offset = idx_vt_cyl
-
-            for m in range(1, verif_rings_p1):
-
-                fac = m * to_fac
-                cmpl_fac = 1.0 - fac
-                t_tex = cmpl_fac * vt_aspect_north + fac * vt_aspect_south
-
-                # Coordinates.
-                for j in range(0, verif_lons):
-
-                    # The x and y coordinates should be the same. North z should
-                    # be half_depth while South z should be -half_depth. So lerp
-                    # between these is not strictly necessary.
-                    v_equator_north = vs[idx_v_n_equator + j]
-                    v_equator_south = vs[idx_v_s_equator + j]
-                    vs[v_cyl_offset] = (
-                        cmpl_fac * v_equator_north[0] +
-                        fac * v_equator_south[0],
-                        cmpl_fac * v_equator_north[1] +
-                        fac * v_equator_south[1],
-                        cmpl_fac * v_equator_north[2] +
-                        fac * v_equator_south[2])
-                    v_cyl_offset += 1
-
-                # Texture coordinates.
-                for j in range(0, verif_lons_p1):
-                    s_tex = s_tex_cache[j]
-                    vts[vt_cyl_offset] = (s_tex, t_tex)
-                    vt_cyl_offset += 1
-
-        # Find index offsets for face indices.
-        idx_fs_cyl = verif_lons + v_lons_half_lat_n1
-        idx_fs_south_equat = idx_fs_cyl + v_lons_v_sections_p1
-        idx_fs_south_hemi = idx_fs_south_equat + v_lons_half_lat_n1
-
-        # Allocate indices arrays. (When properly filled, index tuples at the
-        # poles will be of length 3, else of length 4.)
-        len_indices = idx_fs_south_hemi + verif_lons
-        v_indices = [(0, 0, 0)] * len_indices
-        vt_indices = [(0, 0, 0)] * len_indices
-        vn_indices = [(0, 0, 0)] * len_indices
-
-        # North and South cap indices (triangles).
-        for j in range(0, verif_lons):
-
-            j_next_vt = j + 1
-            j_next_v = j_next_vt % verif_lons
-
-            # North triangle fan.
-            v_indices[j] = (
-                0,
-                j_next_vt,
-                1 + j_next_v)
-
-            vt_indices[j] = (
-                j,
-                verif_lons + j,
-                verif_lons + j_next_vt)
-
-            vn_indices[j] = (
-                0,
-                j_next_vt,
-                1 + j_next_v)
-
-            # South triangle fan.
-            v_indices[idx_fs_south_hemi + j] = (
-                idx_v_south_pole,
-                idx_v_south_cap + j_next_v,
-                idx_v_south_cap + j)
-
-            vt_indices[idx_fs_south_hemi + j] = (
-                idx_vt_s_cap + j,
-                idx_vt_s_polar + j_next_vt,
-                idx_vt_s_polar + j)
-
-            vn_indices[idx_fs_south_hemi + j] = (
-                idx_vn_south_pole,
-                idx_vn_south_cap + j_next_v,
-                idx_vn_south_cap + j)
-
-        # Hemisphere indices (quads).
-        f_hemi_offset_north = verif_lons
-        f_hemi_offset_south = idx_fs_south_equat
-        for i in range(0, half_lats_n1):
-
-            i_v_lons = i * verif_lons
-
-            # North coordinate index offset.
-            v_curr_lat_n = 1 + i_v_lons
-            v_next_lat_n = v_curr_lat_n + verif_lons
-
-            # North texture coordinate index offset.
-            vt_curr_lat_n = verif_lons + i * verif_lons_p1
-            vt_next_lat_n = vt_curr_lat_n + verif_lons_p1
-
-            # North normal index offset.
-            vn_curr_lat_n = 1 + i_v_lons
-            vn_next_lat_n = vn_curr_lat_n + verif_lons
-
-            # South coordinate index offset.
-            v_curr_lat_s = idx_v_s_equator + i_v_lons
-            v_next_lat_s = v_curr_lat_s + verif_lons
-
-            # South texture coordinate index offset.
-            vt_curr_lat_s = idx_vt_s_equator + i * verif_lons_p1
-            vt_next_lat_s = vt_curr_lat_s + verif_lons_p1
-
-            # South normal index offset.
-            vn_curr_lat_s = idx_v_n_equator + i_v_lons
-            vn_next_lat_s = vn_curr_lat_s + verif_lons
-
-            for j in range(0, verif_lons):
-
-                j_next_vt = j + 1
-                j_next_v = j_next_vt % verif_lons
 
                 # Coordinates North quad.
                 v_indices[f_hemi_offset_north] = (
@@ -526,8 +455,62 @@ class CapsuleMaker(bpy.types.Operator):
                     vn_next_lat_s + j_next_v,
                     vn_curr_lat_s + j_next_v)
 
+                # Update face index offsets.
                 f_hemi_offset_north += 1
                 f_hemi_offset_south += 1
+
+            # Find vertical component of texture.
+            t_tex_fac = ip1 * to_tex_vertical
+            t_tex_north = 1.0 * (1.0 - t_tex_fac) + t_tex_fac * vt_aspect_north
+            t_tex_south = vt_aspect_south * (1.0 - t_tex_fac) + t_tex_fac * 0.0
+
+            # Texture coordinates.
+            for j in lons_p1_range:
+                s_tex = s_tex_cache[j]
+
+                vts[vt_hemi_offset_north] = (s_tex, t_tex_north)
+                vts[vt_hemi_offset_south] = (s_tex, t_tex_south)
+
+                vt_hemi_offset_north += 1
+                vt_hemi_offset_south += 1
+
+        # Calculate rings of cylinder in middle.
+        if calc_mid:
+
+            # Linear interpolation must exclude the origin (North equator) and
+            # destination (South equator), so step must not equal 0.0 or 1.0.
+            to_fac = 1.0 / verif_rings_p1
+            v_cyl_offset = idx_v_cyl
+            vt_cyl_offset = idx_vt_cyl
+
+            for m in range(1, verif_rings_p1):
+
+                fac = m * to_fac
+                cmpl_fac = 1.0 - fac
+                t_tex = vt_aspect_north * cmpl_fac + vt_aspect_south * fac
+
+                # Coordinates.
+                for j in lons_range:
+
+                    # The x and y coordinates should be the same. North z should
+                    # be half_depth while South z should be -half_depth. So lerp
+                    # between these is not strictly necessary.
+                    v_equator_north = vs[idx_v_n_equator + j]
+                    v_equator_south = vs[idx_v_s_equator + j]
+                    vs[v_cyl_offset] = (
+                        v_equator_north[0] * cmpl_fac +
+                        v_equator_south[0] * fac,
+                        v_equator_north[1] * cmpl_fac +
+                        v_equator_south[1] * fac,
+                        v_equator_north[2] * cmpl_fac +
+                        v_equator_south[2] * fac)
+                    v_cyl_offset += 1
+
+                # Texture coordinates.
+                for j in lons_p1_range:
+                    s_tex = s_tex_cache[j]
+                    vts[vt_cyl_offset] = (s_tex, t_tex)
+                    vt_cyl_offset += 1
 
         # Cylinder indices (quads).
         f_cyl_offset = idx_fs_cyl
@@ -539,7 +522,7 @@ class CapsuleMaker(bpy.types.Operator):
             vt_curr_ring = idx_vt_n_equator + m * verif_lons_p1
             vt_next_ring = vt_curr_ring + verif_lons_p1
 
-            for j in range(0, verif_lons):
+            for j in lons_range:
                 j_next_vt = j + 1
                 j_next_v = j_next_vt % verif_lons
 
