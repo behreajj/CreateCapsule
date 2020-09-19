@@ -24,20 +24,20 @@ static class Mesh3 {
     PVector edge1 = new PVector();
     PVector cross = new PVector();
 
-    for(int i = 0; i < loopsLen; ++i) {
+    for (int i = 0; i < loopsLen; ++i) {
       Index3[] loop = indices[i];
       int loopLen = loop.length;
-      
+
       // Create new face vector.
       PVector vn = vns[i] = new PVector();
 
       // At loop index 0, the last index is previous.
       Index3 lastVert = loop[loopLen - 1];
       PVector prev = coords[lastVert.v];
-      
+
       // Should be triangles, but assume for simplicity
       // that ngons are properly co planar.
-      for(int j = 0; j < loopLen; ++j) {
+      for (int j = 0; j < loopLen; ++j) {
         Index3 currVert = loop[j];
         Index3 nextVert = loop[(j + 1) % loopLen];
         PVector curr = coords[currVert.v];
@@ -47,14 +47,14 @@ static class Mesh3 {
         PVector.sub(prev, curr, edge0);
         PVector.sub(curr, next, edge1);
         PVector.cross(edge0, edge1, cross);
-        
+
         // Sum per vertex normals to face normal.
         PVector.add(vn, cross, vn);
 
         currVert.vn = i;
         prev = curr;
       }
-      
+
       // When 'averaging' the sum accumulated by the face normal,
       // there's no point in dividing by loopLen because normalize
       // is called anyway.
@@ -88,50 +88,61 @@ static class Mesh3 {
     // Intermediary calculations.
     boolean calcMiddle = verifRings > 0;
     int halfLats = verifLats / 2;
-    int halfLatsN1 = halfLats - 1;
-    int halfLatsN2 = halfLats - 2;
+    int halfLatsn1 = halfLats - 1;
+    int halfLatsn2 = halfLats - 2;
     int verifRingsp1 = verifRings + 1;
     int verifLonsp1 = verifLons + 1;
-    int lonsHalfLatN1 = halfLatsN1 * verifLons;
-    int lonsRingsP1 = verifRingsp1 * verifLons;
+    int lonsHalfLatn1 = halfLatsn1 * verifLons;
+    int lonsRingsp1 = verifRingsp1 * verifLons;
     float halfDepth = verifDepth * 0.5;
     float summit = halfDepth + verifRad;
 
     // Index offsets for coordinates.
-    int idxVNEquator = verifLonsp1 + verifLons * halfLatsN2;
+    int idxVNEquator = verifLonsp1 + verifLons * halfLatsn2;
     int idxVCyl = idxVNEquator + verifLons;
     int idxVSEquator = idxVCyl;
     if (calcMiddle) {
       idxVSEquator += verifLons * verifRings;
     }
     int idxVSouth = idxVSEquator + verifLons;
-    int idxVSouthCap = idxVSouth + verifLons * halfLatsN2;
+    int idxVSouthCap = idxVSouth + verifLons * halfLatsn2;
     int idxVSouthPole = idxVSouthCap + verifLons;
 
     // Index offsets for texture coordinates.
-    int idxVtNEquator = verifLons + verifLonsp1 * halfLatsN1;
+    int idxVtNEquator = verifLons + verifLonsp1 * halfLatsn1;
     int idxVtCyl = idxVtNEquator + verifLonsp1;
     int idxVtSEquator = idxVtCyl;
     if (calcMiddle) {
       idxVtSEquator += verifLonsp1 * verifRings;
     }
     int idxVtSHemi = idxVtSEquator + verifLonsp1;
-    int idxVtSPolar = idxVtSHemi + verifLonsp1 * halfLatsN2;
+    int idxVtSPolar = idxVtSHemi + verifLonsp1 * halfLatsn2;
     int idxVtSCap = idxVtSPolar + verifLonsp1;
 
     // Index offsets for normals.
     int idxVnSouth = idxVNEquator + verifLons;
-    int idxVnSouthCap = idxVnSouth + verifLons * halfLatsN2;
+    int idxVnSouthCap = idxVnSouth + verifLons * halfLatsn2;
     int idxVnSouthPole = idxVnSouthCap + verifLons;
+
+    // Find index offsets for face indices.
+    int idxFsCyl = verifLons + lonsHalfLatn1 * 2;
+    int idxFsSouthEquat = idxFsCyl + lonsRingsp1 * 2;
+    int idxFsSouthHemi = idxFsSouthEquat + lonsHalfLatn1 * 2;
 
     // Array lengths.
     int vsLen = idxVSouthPole + 1;
     int vtsLen = idxVtSCap + verifLons;
     int vnsLen = idxVnSouthPole + 1;
+    int fsLen = idxFsSouthHemi + verifLons;
 
+    // Initialize arrays.
     PVector[] vs = new PVector[vsLen];
     PVector[] vts = new PVector[vtsLen];
     PVector[] vns = new PVector[vnsLen];
+
+    // If we plan to use only triangles, we can initialize
+    // the inner array to 3.
+    Index3[][] fs = new Index3[fsLen][];
 
     // North pole.
     vs[0] = new PVector(0.0, summit, 0.0);
@@ -173,6 +184,33 @@ static class Mesh3 {
 
       // Set equatorial normals.
       vns[idxVNEquator + j] = new PVector(cosTheta, 0.0, -sinTheta);
+
+      // Set polar indices.
+      int jNextVt = j + 1;
+      int jNextV = jNextVt % verifLons;
+
+      // North triangle.
+      fs[j] = new Index3[] {
+        new Index3(0, j, 0),
+        new Index3(jNextVt, verifLons + j, jNextVt),
+        new Index3(1 + jNextV, verifLons + jNextVt, 1 + jNextV) };
+
+      // South triangle.
+      fs[idxFsSouthHemi + j] = new Index3[] {
+        new Index3(
+        idxVSouthPole,
+        idxVtSCap + j,
+        idxVnSouthPole),
+
+        new Index3(
+        idxVSouthCap + jNextV,
+        idxVtSPolar + jNextVt,
+        idxVnSouthCap + jNextV),
+
+        new Index3(
+        idxVSouthCap + j,
+        idxVtSPolar + j,
+        idxVnSouthCap + j) };
     }
 
     // Determine UV aspect ratio from the profile.
@@ -202,9 +240,13 @@ static class Mesh3 {
     int vtHemiOffsetNorth = verifLons;
     int vtHemiOffsetSouth = idxVtSHemi;
     int vnHemiOffsetSouth = idxVnSouth;
+    int fHemiOffsetNorth = verifLons;
+    int fHemiOffsetSouth = idxFsSouthEquat;
 
-    for (int i = 1; i < halfLats; ++i) {
-      float phi = i * toPhi;
+    for (int i = 0; i < halfLatsn1; ++i) {
+      int iLonsCurr = i * verifLons;
+      float ip1f = i + 1.0;
+      float phi = ip1f * toPhi;
       float sinPhiSouth = sin(phi);
       float cosPhiSouth = cos(phi);
 
@@ -223,7 +265,31 @@ static class Mesh3 {
       float rhoSinPhiSouth = verifRad * sinPhiSouth;
       float yOffsetSouth = -halfDepth - rhoSinPhiSouth;
 
-      // Coordinates.
+      // North coordinate index offset.
+      int vCurrLatN = 1 + iLonsCurr;
+      int vNextLatN = vCurrLatN + verifLons;
+
+      // South coordinate index offset.
+      int vCurrLatS = idxVSEquator + iLonsCurr;
+      int vNextLatS = vCurrLatS + verifLons;
+
+      // North texture coordinate index offset.
+      int vtCurrLatN = verifLons + i * verifLonsp1;
+      int vtNextLatN = vtCurrLatN + verifLonsp1;
+
+      // South texture coordinate index offset.
+      int vtCurrLatS = idxVtSEquator + i * verifLonsp1;
+      int vtNextLatS = vtCurrLatS + verifLonsp1;
+
+      // North normal index offset.
+      int vnCurrLatN = 1 + iLonsCurr;
+      int vnNextLatN = vnCurrLatN + verifLons;
+
+      // South normal index offset.
+      int vnCurrLatS = idxVNEquator + iLonsCurr;
+      int vnNextLatS = vnCurrLatS + verifLons;
+
+      // Coordinates, normals and face indices.
       for ( int j = 0; j < verifLons; ++j ) {
         float sinTheta = sinThetaCache[j];
         float cosTheta = cosThetaCache[j];
@@ -255,135 +321,7 @@ static class Mesh3 {
         ++vHemiOffsetNorth;
         ++vHemiOffsetSouth;
         ++vnHemiOffsetSouth;
-      }
 
-      // For UVs, linear interpolation from North pole to
-      // North aspect ratio; and from South pole to South
-      // aspect ratio.
-      float tTexFac = i * toTexVertical;
-      float tTexNorth = 1.0 - tTexFac + tTexFac * vtAspectNorth;
-      float tTexSouth = vtAspectSouth * (1.0 - tTexFac);
-
-      // Texture coordinates.
-      for ( int j = 0; j < verifLonsp1; ++j ) {
-        float sTex = sTexCache[j];
-
-        vts[vtHemiOffsetNorth] = new PVector(sTex, tTexNorth);
-        vts[vtHemiOffsetSouth] = new PVector(sTex, tTexSouth);
-
-        ++vtHemiOffsetNorth;
-        ++vtHemiOffsetSouth;
-      }
-    }
-
-    // Calculate sections of cylinder in middle.
-    if (calcMiddle) {
-
-      // Linear interpolation must exclude the origin (North equator)
-      // and the destination (South equator), so step must never equal
-      // 0.0 or 1.0 .
-      float toFac = 1.0 / verifRingsp1;
-      int vCylOffset = idxVCyl;
-      int vtCylOffset = idxVtCyl;
-      for (int m = 1; m < verifRingsp1; ++m) {
-        float fac = m * toFac;
-        float cmplFac = 1.0 - fac;
-
-        // Coordinates.
-        for (int j = 0; j < verifLons; ++j) {
-          PVector vEquatorNorth = vs[idxVNEquator + j];
-          PVector vEquatorSouth = vs[idxVSEquator + j];
-
-          // xy should be the same for both North and South.
-          // North z should equal half_depth while South z
-          // should equal -half_depth. However this is kept as
-          // a linear interpolation for clarity.
-          vs[vCylOffset] = new PVector(
-            cmplFac * vEquatorNorth.x + fac * vEquatorSouth.x,
-            cmplFac * vEquatorNorth.y + fac * vEquatorSouth.y,
-            cmplFac * vEquatorNorth.z + fac * vEquatorSouth.z);
-
-          ++vCylOffset;
-        }
-
-        // Texture coordinates.
-        float tTex = cmplFac * vtAspectNorth + fac * vtAspectSouth;
-        for (int j = 0; j < verifLonsp1; ++j) {
-          float sTex = sTexCache[j];
-          vts[vtCylOffset] = new PVector(sTex, tTex);
-          ++vtCylOffset;
-        }
-      }
-    }
-
-    // Find index offsets for face indices.
-    int idxFsCyl = verifLons + lonsHalfLatN1 * 2;
-    int idxFsSouthEquat = idxFsCyl + lonsRingsP1 * 2;
-    int idxFsSouthHemi = idxFsSouthEquat + lonsHalfLatN1 * 2;
-
-    int lenIndices = idxFsSouthHemi + verifLons;
-    Index3[][] fs = new Index3[lenIndices][3];
-
-    // North & South cap indices (always triangles).
-    for (int j = 0; j < verifLons; ++j) {
-      int jNextVt = j + 1;
-      int jNextV = jNextVt % verifLons;
-
-      // North triangle.
-      fs[j] = new Index3[] {
-        new Index3(0, j, 0),
-        new Index3(jNextVt, verifLons + j, jNextVt),
-        new Index3(1 + jNextV, verifLons + jNextVt, 1 + jNextV) };
-
-      // South triangle.
-      fs[idxFsSouthHemi + j] = new Index3[] {
-        new Index3(
-        idxVSouthPole,
-        idxVtSCap + j,
-        idxVnSouthPole),
-
-        new Index3(
-        idxVSouthCap + jNextV,
-        idxVtSPolar + jNextVt,
-        idxVnSouthCap + jNextV),
-
-        new Index3(
-        idxVSouthCap + j,
-        idxVtSPolar + j,
-        idxVnSouthCap + j) };
-    }
-
-    // Hemisphere indices.
-    int fHemiOffsetNorth = verifLons;
-    int fHemiOffsetSouth = idxFsSouthEquat;
-    for ( int i = 0; i < halfLatsN1; ++i ) {
-      int iLonsCurr = i * verifLons;
-
-      // North coordinate index offset.
-      int vCurrLatN = 1 + iLonsCurr;
-      int vNextLatN = vCurrLatN + verifLons;
-
-      // South coordinate index offset.
-      int vCurrLatS = idxVSEquator + iLonsCurr;
-      int vNextLatS = vCurrLatS + verifLons;
-
-      // North texture coordinate index offset.
-      int vtCurrLatN = verifLons + i * verifLonsp1;
-      int vtNextLatN = vtCurrLatN + verifLonsp1;
-
-      // South texture coordinate index offset.
-      int vtCurrLatS = idxVtSEquator + i * verifLonsp1;
-      int vtNextLatS = vtCurrLatS + verifLonsp1;
-
-      // North normal index offset.
-      int vnCurrLatN = 1 + iLonsCurr;
-      int vnNextLatN = vnCurrLatN + verifLons;
-
-      // South normal index offset.
-      int vnCurrLatS = idxVNEquator + iLonsCurr;
-      int vnNextLatS = vnCurrLatS + verifLons;
-
-      for ( int j = 0; j < verifLons; ++j ) {
         int jNextVt = j + 1;
         int jNextV = jNextVt % verifLons;
 
@@ -447,6 +385,64 @@ static class Mesh3 {
 
         fHemiOffsetNorth += 2;
         fHemiOffsetSouth += 2;
+      }
+
+      // For UVs, linear interpolation from North pole to
+      // North aspect ratio; and from South pole to South
+      // aspect ratio.
+      float tTexFac = ip1f * toTexVertical;
+      float tTexNorth = 1.0 - tTexFac + tTexFac * vtAspectNorth;
+      float tTexSouth = vtAspectSouth * (1.0 - tTexFac);
+
+      // Texture coordinates.
+      for ( int j = 0; j < verifLonsp1; ++j ) {
+        float sTex = sTexCache[j];
+
+        vts[vtHemiOffsetNorth] = new PVector(sTex, tTexNorth);
+        vts[vtHemiOffsetSouth] = new PVector(sTex, tTexSouth);
+
+        ++vtHemiOffsetNorth;
+        ++vtHemiOffsetSouth;
+      }
+    }
+
+    // Calculate sections of cylinder in middle.
+    if (calcMiddle) {
+
+      // Linear interpolation must exclude the origin (North equator)
+      // and the destination (South equator), so step must never equal
+      // 0.0 or 1.0 .
+      float toFac = 1.0 / verifRingsp1;
+      int vCylOffset = idxVCyl;
+      int vtCylOffset = idxVtCyl;
+      for (int m = 1; m < verifRingsp1; ++m) {
+        float fac = m * toFac;
+        float cmplFac = 1.0 - fac;
+
+        // Coordinates.
+        for (int j = 0; j < verifLons; ++j) {
+          PVector vEquatorNorth = vs[idxVNEquator + j];
+          PVector vEquatorSouth = vs[idxVSEquator + j];
+
+          // xy should be the same for both North and South.
+          // North z should equal half_depth while South z
+          // should equal -half_depth. However this is kept as
+          // a linear interpolation for clarity.
+          vs[vCylOffset] = new PVector(
+            cmplFac * vEquatorNorth.x + fac * vEquatorSouth.x,
+            cmplFac * vEquatorNorth.y + fac * vEquatorSouth.y,
+            cmplFac * vEquatorNorth.z + fac * vEquatorSouth.z);
+
+          ++vCylOffset;
+        }
+
+        // Texture coordinates.
+        float tTex = cmplFac * vtAspectNorth + fac * vtAspectSouth;
+        for (int j = 0; j < verifLonsp1; ++j) {
+          float sTex = sTexCache[j];
+          vts[vtCylOffset] = new PVector(sTex, tTex);
+          ++vtCylOffset;
+        }
       }
     }
 
