@@ -221,7 +221,7 @@ public class CapsuleMaker : EditorWindow
             float cosPhiSouth = Mathf.Cos (phi);
             float sinPhiSouth = Mathf.Sin (phi);
 
-            // Symmetrical hemispheres mean cosine and sine only needs
+            // Symmetrical hemispheres mean cosine and sine only need
             // to be calculated once.
             float cosPhiNorth = sinPhiSouth;
             float sinPhiNorth = -cosPhiSouth;
@@ -247,7 +247,6 @@ public class CapsuleMaker : EditorWindow
             for (int j = 0; j < lonsp1; ++j)
             {
                 int jMod = j % longitudes;
-
                 float sTexture = sTextureCache[j];
                 Vector2 tc = thetaCartesian[jMod];
 
@@ -295,9 +294,9 @@ public class CapsuleMaker : EditorWindow
                 for (int j = 0; j < lonsp1; ++j)
                 {
                     int jMod = j % longitudes;
+                    float sTexture = sTextureCache[j];
                     Vector2 tc = thetaCartesian[jMod];
                     Vector2 rtc = rhoThetaCartesian[jMod];
-                    float sTexture = sTextureCache[j];
 
                     vs[idxCylLat] = new Vector3 (rtc.x, z, -rtc.y);
                     vts[idxCylLat] = new Vector2 (sTexture, tTexture);
@@ -383,8 +382,7 @@ public class CapsuleMaker : EditorWindow
         // Cylinder.
         for (int i = 0, k = triOffsetCylinder; i < ringsp1; ++i)
         {
-            int iLonsp1 = i * lonsp1;
-            int vertCurrLat = vertOffsetNorthEquator + iLonsp1;
+            int vertCurrLat = vertOffsetNorthEquator + i * lonsp1;
             int vertNextLat = vertCurrLat + lonsp1;
 
             for (int j = 0; j < longitudes; ++j, k += 6)

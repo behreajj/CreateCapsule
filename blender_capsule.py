@@ -179,7 +179,7 @@ class CapsuleMaker(bpy.types.Operator):
             verif_lats += 1
 
         # Preliminary calculations.
-        calc_mid = verif_rings > 0
+        calc_middle = verif_rings > 0
         half_lats = verif_lats // 2
         half_lats_n1 = half_lats - 1
         half_lats_n2 = half_lats - 2
@@ -194,7 +194,7 @@ class CapsuleMaker(bpy.types.Operator):
         idx_v_n_equator = verif_lons_p1 + verif_lons * half_lats_n2
         idx_v_cyl = idx_v_n_equator + verif_lons
         idx_v_s_equator = (idx_v_cyl + verif_lons * verif_rings) \
-            if calc_mid else idx_v_cyl
+            if calc_middle else idx_v_cyl
         idx_v_south = idx_v_s_equator + verif_lons
         idx_v_south_cap = idx_v_south + verif_lons * half_lats_n2
         idx_v_south_pole = idx_v_south_cap + verif_lons
@@ -203,7 +203,7 @@ class CapsuleMaker(bpy.types.Operator):
         idx_vt_n_equator = verif_lons + verif_lons_p1 * half_lats_n1
         idx_vt_cyl = idx_vt_n_equator + verif_lons_p1
         idx_vt_s_equator = (idx_vt_cyl + verif_lons_p1 * verif_rings) \
-            if calc_mid else idx_vt_cyl
+            if calc_middle else idx_vt_cyl
         idx_vt_s_hemi = idx_vt_s_equator + verif_lons_p1
         idx_vt_s_polar = idx_vt_s_hemi + verif_lons_p1 * half_lats_n2
         idx_vt_s_cap = idx_vt_s_polar + verif_lons_p1
@@ -475,7 +475,7 @@ class CapsuleMaker(bpy.types.Operator):
                 vt_hemi_offset_south += 1
 
         # Calculate rings of cylinder in middle.
-        if calc_mid:
+        if calc_middle:
 
             # Linear interpolation must exclude the origin (North equator) and
             # destination (South equator), so step must not equal 0.0 or 1.0.
