@@ -1,14 +1,12 @@
 extends MeshInstance
 
+
 export var longitudes: int = 32 setget set_longitudes, get_longitudes
 export var latitudes: int = 16 setget set_latitudes, get_latitudes
 export var rings: int = 0 setget set_rings, get_rings
-
 export var depth: float = 1.0 setget set_depth, get_depth
 export var radius: float = 0.5 setget set_radius, get_radius
-
 export (String, "ASPECT", "FIXED", "UNIFORM") var uv_profile: String = "ASPECT" setget set_uv_profile, get_uv_profile
-
 export var axis = Vector3(0.0, 0.6, 0.8)
 
 
