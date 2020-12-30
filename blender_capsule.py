@@ -2,11 +2,9 @@ import bpy
 import math
 import bmesh
 from bpy.props import (
-    BoolProperty,
     IntProperty,
     EnumProperty,
-    FloatProperty,
-    FloatVectorProperty)
+    FloatProperty)
 
 
 bl_info = {
@@ -29,7 +27,7 @@ class CapsuleMaker(bpy.types.Operator):
 
     longitudes: IntProperty(
         name="Longitudes",
-        description="Number of longitudes, or meridians.",
+        description="Number of longitudes, or meridians",
         min=3,
         soft_max=96,
         default=32,
@@ -37,7 +35,7 @@ class CapsuleMaker(bpy.types.Operator):
 
     latitudes: IntProperty(
         name="Latitudes",
-        description="Number of latitudes across both hemispheres.",
+        description="Number of latitudes across both hemispheres",
         min=2,
         soft_max=48,
         default=16,
@@ -45,7 +43,7 @@ class CapsuleMaker(bpy.types.Operator):
 
     rings: IntProperty(
         name="Rings",
-        description="Number of middle rings in the cylinder.",
+        description="Number of middle rings in the cylinder",
         min=0,
         soft_max=8,
         default=0,
@@ -67,20 +65,20 @@ class CapsuleMaker(bpy.types.Operator):
 
     uv_profile: EnumProperty(
         items=[
-            ("ASPECT", "Aspect", "UVs match depth to radius ratio.", 1),
-            ("FIXED", "Fixed", "Uses a fixed ratio.", 2),
-            ("UNIFORM", "Uniform", "UV cells are uniform size.", 3)],
+            ("ASPECT", "Aspect", "UVs match depth to radius ratio", 1),
+            ("FIXED", "Fixed", "Uses a fixed ratio", 2),
+            ("UNIFORM", "Uniform", "UV cells are uniform size", 3)],
         name="UV Profile",
         default="ASPECT",
-        description="How to distribute texture coordinates vertically.")
+        description="How to distribute texture coordinates vertically")
 
     shading: EnumProperty(
         items=[
-            ("SMOOTH", "Smooth", "Smooth shading.", 1),
-            ("FLAT", "Flat", "Flat shading.", 2)],
+            ("SMOOTH", "Smooth", "Smooth shading", 1),
+            ("FLAT", "Flat", "Flat shading", 2)],
         name="Shading",
         default="SMOOTH",
-        description="Whether to use smooth or flat shading.")
+        description="Whether to use smooth or flat shading")
 
     def execute(self, context):
         data = CapsuleMaker.create_capsule(
@@ -104,7 +102,7 @@ class CapsuleMaker(bpy.types.Operator):
         bm.to_mesh(mesh_data)
         bm.free()
         mesh_obj = bpy.data.objects.new(mesh_data.name, mesh_data)
-        mesh_obj.rotation_mode = "QUATERNION"
+        mesh_obj.location = context.scene.cursor.location
         context.scene.collection.objects.link(mesh_obj)
 
         return {"FINISHED"}
